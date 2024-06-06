@@ -1,21 +1,49 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from datasets import load_dataset
+import pandas as pd
 from transformers import BertTokenizer, Trainer, TrainingArguments
+from sklearn.model_selection import train_test_split
 
-# Load the MedQuAD dataset
-dataset = load_dataset('medquad')
+# Load MedQuAD dataset
+# Assuming the dataset is in CSV format
+data = pd.read_csv('medquad.csv')  # Adjust the file path as needed
 
-# Tokenize dataset
+# Preprocess the dataset
+# For this example, assume the dataset has columns 'question' and 'label'
+data = data[['question', 'label']]
+
+# Split the dataset into train and test sets
+train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
+
+# Tokenize the dataset using BertTokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
 def tokenize_function(examples):
-    return tokenizer(examples['question'], padding='max_length', truncation=True)
+    return tokenizer(examples['question'].tolist(), padding='max_length', truncation=True, return_tensors='pt')
 
-tokenized_datasets = dataset.map(tokenize_function, batched=True)
-tokenized_datasets = tokenized_datasets.rename_column("label", "labels")
-tokenized_datasets.set_format('torch', columns=['input_ids', 'attention_mask', 'labels'])
+train_encodings = tokenize_function(train_data)
+test_encodings = tokenize_function(test_data)
+
+train_labels = torch.tensor(train_data['label'].values)
+test_labels = torch.tensor(test_data['label'].values)
+
+# Create PyTorch datasets
+class MedQuADDataset(torch.utils.data.Dataset):
+    def __init__(self, encodings, labels):
+        self.encodings = encodings
+        self.labels = labels
+
+    def __getitem__(self, idx):
+        item = {key: val[idx] for key, val in self.encodings.items()}
+        item['labels'] = self.labels[idx]
+        return item
+
+    def __len__(self):
+        return len(self.labels)
+
+train_dataset = MedQuADDataset(train_encodings, train_labels)
+test_dataset = MedQuADDataset(test_encodings, test_labels)
 
 # Multi-Head Attention Layer
 class MultiHeadAttention(nn.Module):
@@ -114,8 +142,8 @@ training_args = TrainingArguments(
 trainer = Trainer(
     model=model,
     args=training_args,
-    train_dataset=tokenized_datasets['train'],
-    eval_dataset=tokenized_datasets['test']
+    train_dataset=train_dataset,
+    eval_dataset=test_dataset
 )
 
 # Train the model
@@ -139,3 +167,4 @@ class CustomGMLPSentimentAnalyzer:
 analyzer = CustomGMLPSentimentAnalyzer(model, tokenizer)
 sentiment = analyzer.analyze_sentiment("I'm feeling great about this diagnosis!")
 print(f"Sentiment: {'Positive' if sentiment == 1 else 'Negative'}")
+
