@@ -1,10 +1,13 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from datasets import load_dataset
+from transformers import BertTokenizer, Trainer, TrainingArguments
 
 # Load the MedQuAD dataset
 dataset = load_dataset('medquad')
 
-from transformers import BertTokenizer
-
+# Tokenize dataset
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
 def tokenize_function(examples):
@@ -13,10 +16,8 @@ def tokenize_function(examples):
 tokenized_datasets = dataset.map(tokenize_function, batched=True)
 tokenized_datasets = tokenized_datasets.rename_column("label", "labels")
 tokenized_datasets.set_format('torch', columns=['input_ids', 'attention_mask', 'labels'])
-import torch
-import torch.nn as nn
-from torch.nn import functional as F
 
+# Multi-Head Attention Layer
 class MultiHeadAttention(nn.Module):
     def __init__(self, embed_size, heads):
         super(MultiHeadAttention, self).__init__()
@@ -35,7 +36,6 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, values, keys, query, mask):
         N = query.shape[0]
-
         value_len, key_len, query_len = values.shape[1], keys.shape[1], query.shape[1]
 
         # Split the embedding into self.heads different pieces
@@ -61,6 +61,7 @@ class MultiHeadAttention(nn.Module):
         out = self.fc_out(out)
         return out
 
+# gMLP Block
 class gMLPBlock(nn.Module):
     def __init__(self, embed_size, hidden_size):
         super(gMLPBlock, self).__init__()
@@ -74,6 +75,7 @@ class gMLPBlock(nn.Module):
         out = self.fc2(out)
         return out
 
+# Custom gMLP Model with Multi-Head Attention
 class CustomGMLP(nn.Module):
     def __init__(self, embed_size, hidden_size, heads, num_classes):
         super(CustomGMLP, self).__init__()
@@ -96,6 +98,30 @@ heads = 12
 num_classes = 2  # Assuming binary classification for sentiment analysis
 
 model = CustomGMLP(embed_size, hidden_size, heads, num_classes)
+
+# Training arguments
+training_args = TrainingArguments(
+    output_dir='./results',
+    evaluation_strategy='epoch',
+    learning_rate=2e-5,
+    per_device_train_batch_size=8,
+    per_device_eval_batch_size=8,
+    num_train_epochs=3,
+    weight_decay=0.01,
+)
+
+# Trainer
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_datasets['train'],
+    eval_dataset=tokenized_datasets['test']
+)
+
+# Train the model
+trainer.train()
+
+# Custom Sentiment Analyzer
 class CustomGMLPSentimentAnalyzer:
     def __init__(self, model, tokenizer):
         self.model = model
