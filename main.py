@@ -4,15 +4,30 @@ import torch.nn.functional as F
 import pandas as pd
 from transformers import BertTokenizer, Trainer, TrainingArguments
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 
-data = pd.read_csv('/mnt/c/Users/640185/Downloads/medquad.csv')  # Adjust the file path as needed
-print(data.head())
-print(data.columns)
+# Load MedQuAD dataset
+data = pd.read_csv('medquad.csv')  # Adjust the file path as needed
 
-data = data[['question', 'answer']]
+# Check the columns
+print(data.columns)  # Ensure to print columns to verify their names
 
+# Create labels (e.g., based on some condition in the dataset)
+# For demonstration, let's create dummy labels
+# You should replace this with actual label extraction logic
+data['label'] = (data['focus_area'] == 'some_focus_area').astype(int)  # Example condition
+
+# Preprocess the dataset
+# Using only 'question' and the created 'label'
+data = data[['question', 'label']]
+
+# Ensure text data is converted to strings
+data['question'] = data['question'].astype(str)
+
+# Split the dataset into train and test sets
 train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
 
+# Tokenize the dataset using BertTokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
 def tokenize_function(examples):
@@ -21,9 +36,10 @@ def tokenize_function(examples):
 train_encodings = tokenize_function(train_data)
 test_encodings = tokenize_function(test_data)
 
-train_labels = torch.tensor(train_data['label'].values)
-test_labels = torch.tensor(test_data['label'].values)
+train_labels = torch.tensor(train_data['label'].values, dtype=torch.long)
+test_labels = torch.tensor(test_data['label'].values, dtype=torch.long)
 
+# Create PyTorch datasets
 class MedQuADDataset(torch.utils.data.Dataset):
     def __init__(self, encodings, labels):
         self.encodings = encodings
@@ -40,6 +56,7 @@ class MedQuADDataset(torch.utils.data.Dataset):
 train_dataset = MedQuADDataset(train_encodings, train_labels)
 test_dataset = MedQuADDataset(test_encodings, test_labels)
 
+# Multi-Head Attention Layer
 class MultiHeadAttention(nn.Module):
     def __init__(self, embed_size, heads):
         super(MultiHeadAttention, self).__init__()
@@ -83,6 +100,7 @@ class MultiHeadAttention(nn.Module):
         out = self.fc_out(out)
         return out
 
+# gMLP Block
 class gMLPBlock(nn.Module):
     def __init__(self, embed_size, hidden_size):
         super(gMLPBlock, self).__init__()
@@ -96,6 +114,7 @@ class gMLPBlock(nn.Module):
         out = self.fc2(out)
         return out
 
+# Custom gMLP Model with Multi-Head Attention
 class CustomGMLP(nn.Module):
     def __init__(self, embed_size, hidden_size, heads, num_classes):
         super(CustomGMLP, self).__init__()
@@ -111,6 +130,7 @@ class CustomGMLP(nn.Module):
         out = self.fc_out(self.dropout(gmlp_output[:, 0, :]))
         return out
 
+# Model hyperparameters
 embed_size = 768
 hidden_size = 3072
 heads = 12
@@ -118,6 +138,7 @@ num_classes = 2  # Assuming binary classification for sentiment analysis
 
 model = CustomGMLP(embed_size, hidden_size, heads, num_classes)
 
+# Training arguments
 training_args = TrainingArguments(
     output_dir='./results',
     evaluation_strategy='epoch',
@@ -128,6 +149,7 @@ training_args = TrainingArguments(
     weight_decay=0.01,
 )
 
+# Trainer
 trainer = Trainer(
     model=model,
     args=training_args,
@@ -135,8 +157,10 @@ trainer = Trainer(
     eval_dataset=test_dataset
 )
 
+# Train the model
 trainer.train()
 
+# Custom Sentiment Analyzer
 class CustomGMLPSentimentAnalyzer:
     def __init__(self, model, tokenizer):
         self.model = model
@@ -150,7 +174,7 @@ class CustomGMLPSentimentAnalyzer:
         sentiment = torch.argmax(probs).item()
         return sentiment
 
+# Example usage
 analyzer = CustomGMLPSentimentAnalyzer(model, tokenizer)
 sentiment = analyzer.analyze_sentiment("I'm feeling great about this diagnosis!")
 print(f"Sentiment: {'Positive' if sentiment == 1 else 'Negative'}")
-
