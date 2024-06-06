@@ -5,9 +5,11 @@ import pandas as pd
 from transformers import BertTokenizer, Trainer, TrainingArguments
 from sklearn.model_selection import train_test_split
 
-data = pd.read_csv('medquad.csv')  # Adjust the file path as needed
+data = pd.read_csv('/mnt/c/Users/640185/Downloads/medquad.csv')  # Adjust the file path as needed
+print(data.head())
+print(data.columns)
 
-data = data[['question', 'label']]
+data = data[['question', 'answer']]
 
 train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
 
