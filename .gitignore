@@ -1,7 +1,10 @@
 #Secrets
 .env
+#RAG stuffs
+en/
 #Will's venv name
 env
+.venv
 #VSCode
 .vscode
 #Huggingface wandb
