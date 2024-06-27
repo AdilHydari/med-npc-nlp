@@ -1,11 +1,11 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
-device = "mps"  # cuda or cpu
-checkpoint = "dmis-lab/meerkat-7b-v1.0"
+device = "cpu"  # cuda or cpu
+checkpoint = "mradermacher/meerkat-7b-v1.0-GGUF"
 tokenizer = AutoTokenizer.from_pretrained(checkpoint)
 model = AutoModelForCausalLM.from_pretrained(
     checkpoint,
-    torch_dtype=torch.bfloat16,  # You can choose to use this when there's not enough GPU memory available.
+    #torch_dtype=torch.bfloat16,  # You can choose to use this when there's not enough GPU memory available.
 )
 
 # Multi-turn dialogue example
